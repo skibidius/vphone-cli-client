@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicLong
  * fire-and-forget (responses are ignored) for minimum latency.
  */
 class InputClient(
-    okhttp: OkHttpClient,
+    private val okhttp: OkHttpClient,
     host: String,
     port: Int,
     token: String,
