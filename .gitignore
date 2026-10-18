@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+.build/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+macos/.build/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.iml
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+
+# Logs
+*.log

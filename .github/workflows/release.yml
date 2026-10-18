@@ -1,0 +1,98 @@
+name: build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  HAS_KEYSTORE: ${{ secrets.VPHONE_KEYSTORE_BASE64 != '' }}
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build signed release APK
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: android
+        env:
+          VPHONE_KEYSTORE_BASE64: ${{ secrets.VPHONE_KEYSTORE_BASE64 }}
+          VPHONE_KEYSTORE_PASSWORD: ${{ secrets.VPHONE_KEYSTORE_PASSWORD }}
+          VPHONE_KEY_ALIAS: ${{ secrets.VPHONE_KEY_ALIAS }}
+          VPHONE_KEY_PASSWORD: ${{ secrets.VPHONE_KEY_PASSWORD }}
+        run: gradle :app:assembleRelease --no-daemon
+
+      - name: Build debug APK (fallback, no signing secrets)
+        if: env.HAS_KEYSTORE != 'true'
+        working-directory: android
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Normalize APK name
+        run: |
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk vphone-client.apk
+          else
+            cp android/app/build/outputs/apk/debug/app-debug.apk vphone-client.apk
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vphone-client-apk
+          path: vphone-client.apk
+
+  macos:
+    name: macOS helper
+    runs-on: macos-14 # arm64 (Apple Silicon), as required by vphone-cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build release
+        working-directory: macos
+        run: swift build -c release
+
+      - name: Ad-hoc codesign
+        working-directory: macos
+        run: codesign --force --sign - .build/release/vphone-bridge
+
+      - name: Package
+        working-directory: macos
+        run: tar -czf vphone-bridge-macos-arm64.tar.gz -C .build/release vphone-bridge
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vphone-bridge-macos
+          path: macos/vphone-bridge-macos-arm64.tar.gz
+
+  release:
+    name: Publish GitHub Release
+    needs: [android, macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/vphone-client-apk/vphone-client.apk
+            dist/vphone-bridge-macos/vphone-bridge-macos-arm64.tar.gz
