@@ -60,9 +60,16 @@ phone. Leave this window open.
    - `adb install vphone-client.apk`
 4. Open **vPhone Client**.
 
-You should see the iOS screen. The bottom bar has Home / Power / Vol± / ⚙
-(host/port/token settings). The phone's physical volume keys are forwarded to
-iOS too. Pinch with two fingers works (zoom in Photos, Maps, etc.).
+You should see the iOS screen, fullscreen and without any client UI. The
+phone's physical volume keys are forwarded to iOS, and pinch works (zoom in
+Photos, Maps, etc.).
+
+- **Settings** are hidden: long-press the app icon in the launcher and tap
+  **Settings** to edit host/port/token.
+- The app blocks Android system gestures (back is swallowed, edge swipes go to
+  the VM) and pins itself so the **home** gesture doesn't leave it. To fully
+  block the home gesture, enable **Settings → Security → Screen pinning** on the
+  phone once. To unpin: swipe up from the bottom and hold, then confirm.
 
 > The host and port in the app default to `127.0.0.1:8765` — the adb-reverse
 > tunnel makes that the phone's own loopback, so you normally don't need to

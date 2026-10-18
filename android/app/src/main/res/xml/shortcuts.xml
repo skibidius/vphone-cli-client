@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Long-press the app icon in the launcher to open connection settings. -->
+    <shortcut
+        android:shortcutId="settings"
+        android:enabled="true"
+        android:icon="@drawable/ic_settings"
+        android:shortcutShortLabel="@string/settings"
+        android:shortcutLongLabel="@string/settings">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.vphone.client"
+            android:targetClass="com.vphone.client.MainActivity">
+            <extra
+                android:name="com.vphone.client.EXTRA_OPEN_SETTINGS"
+                android:value="true" />
+        </intent>
+    </shortcut>
+</shortcuts>

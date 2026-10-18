@@ -1,7 +1,10 @@
 package com.vphone.client
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.KeyEvent
@@ -9,10 +12,10 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.vphone.client.stream.StreamController
@@ -43,14 +46,50 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         status = findViewById(R.id.status)
 
         surface.holder.addCallback(this)
-
-        findViewById<Button>(R.id.btn_home).setOnClickListener { controller?.sendButton("home") }
-        findViewById<Button>(R.id.btn_power).setOnClickListener { controller?.sendButton("power") }
-        findViewById<Button>(R.id.btn_vol_up).setOnClickListener { controller?.sendButton("volume-up") }
-        findViewById<Button>(R.id.btn_vol_down).setOnClickListener { controller?.sendButton("volume-down") }
-        findViewById<Button>(R.id.btn_settings).setOnClickListener { showSettings() }
-
         surface.setOnTouchListener { v, event -> touchInjector.handle(controller, event, v.width, v.height) }
+
+        // Opened via the launcher long-press shortcut.
+        if (intent?.getBooleanExtra(EXTRA_OPEN_SETTINGS, false) == true) {
+            window.decorView.post { showSettings() }
+        }
+
+        // Android back gesture/button must not leave the app (iOS back is an
+        // edge swipe that is sent to the VM as touch).
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                // Consumed.
+            }
+        })
+
+        // Let edge/bottom swipes reach the VM instead of Android gestures.
+        root.viewTreeObserver.addOnGlobalLayoutListener {
+            excludeSystemGestures()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_SETTINGS, false)) {
+            showSettings()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Pin the screen (kiosk mode) so the home gesture can't leave the app.
+        // Needs "Screen pinning" enabled in Settings → Security.
+        try {
+            startLockTask()
+        } catch (_: Exception) {
+            // Screen pinning unavailable — home gesture will still exit.
+        }
+    }
+
+    private fun excludeSystemGestures() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && root.width > 0 && root.height > 0) {
+            root.systemGestureExclusionRects = listOf(Rect(0, 0, root.width, root.height))
+        }
     }
 
     // ---- Settings ---------------------------------------------------------
@@ -137,7 +176,14 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun onStatus(text: String) {
-        runOnUiThread { status.text = text }
+        runOnUiThread {
+            if (text == "Streaming") {
+                status.visibility = View.GONE
+            } else {
+                status.text = text
+                status.visibility = View.VISIBLE
+            }
+        }
     }
 
     private fun applyAspect(videoW: Int, videoH: Int) {
@@ -159,5 +205,9 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                 or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             )
+    }
+
+    companion object {
+        const val EXTRA_OPEN_SETTINGS = "com.vphone.client.EXTRA_OPEN_SETTINGS"
     }
 }
