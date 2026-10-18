@@ -75,12 +75,19 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
-        // Pin the screen (kiosk mode) so the home gesture can't leave the app.
-        // Needs "Screen pinning" enabled in Settings → Security.
+        // Pin the screen (kiosk mode) so the Android home/recents/shade
+        // gestures can't steal swipes from iOS. Needs "Screen pinning"
+        // enabled in Settings → Security.
+        pinScreen()
+        // Retry shortly after, in case the first call happened too early.
+        window.decorView.postDelayed({ pinScreen() }, 600)
+    }
+
+    private fun pinScreen() {
         try {
             startLockTask()
         } catch (_: Exception) {
-            // Screen pinning unavailable — home gesture will still exit.
+            // Screen pinning unavailable — Android gestures will still intercept.
         }
     }
 
