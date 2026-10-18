@@ -6,7 +6,6 @@ import android.content.SharedPreferences
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -19,7 +18,6 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.vphone.client.stream.StreamController
-import kotlin.math.min
 
 class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
@@ -132,7 +130,7 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         controller?.stop()
         if (surface.holder.surface.isValid) {
             controller = newController()
-            controller?.start(surface.holder.surface, ::onVideoSize, ::onStatus)
+            controller?.start(surface.holder.surface, { _, _ -> }, ::onStatus)
         }
     }
 
@@ -159,7 +157,7 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         controller = newController()
-        controller?.start(holder.surface, ::onVideoSize, ::onStatus)
+        controller?.start(holder.surface, { _, _ -> }, ::onStatus)
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
@@ -169,11 +167,12 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         controller = null
     }
 
-    // ---- Video sizing + status --------------------------------------------
+    // ---- Status ------------------------------------------------------------
 
-    private fun onVideoSize(videoW: Int, videoH: Int) {
-        runOnUiThread { applyAspect(videoW, videoH) }
-    }
+    // The SurfaceView fills the whole screen (match_parent in the layout), so
+    // the video stretches to cover it without letterbox bars. The slight
+    // distortion is imperceptible for the close iPhone/Android aspect ratios,
+    // and it keeps the normalized touch mapping (view == video) correct.
 
     private fun onStatus(text: String) {
         runOnUiThread {
@@ -184,16 +183,6 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 status.visibility = View.VISIBLE
             }
         }
-    }
-
-    private fun applyAspect(videoW: Int, videoH: Int) {
-        if (videoW <= 0 || videoH <= 0) return
-        val pw = if (root.width > 0) root.width else resources.displayMetrics.widthPixels
-        val ph = if (root.height > 0) root.height else resources.displayMetrics.heightPixels
-        val scale = min(pw.toFloat() / videoW, ph.toFloat() / videoH)
-        val w = (videoW * scale).toInt().coerceAtLeast(1)
-        val h = (videoH * scale).toInt().coerceAtLeast(1)
-        surface.layoutParams = FrameLayout.LayoutParams(w, h, Gravity.CENTER)
     }
 
     private fun hideSystemBars() {

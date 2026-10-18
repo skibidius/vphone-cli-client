@@ -11,7 +11,7 @@ class StreamController(
     private val port: Int,
     private val token: String,
     private val codec: String = "h264",
-    private val bitrate: Int = 4_000_000,
+    private val bitrate: Int = 16_000_000,
     private val fps: Int = 60,
     private val box: Int = 2796,
 ) {
