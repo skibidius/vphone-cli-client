@@ -1,12 +1,13 @@
 import Foundation
 
-/// Launches and supervises the `vphone-cli` process with the automation API
-/// enabled, and a fixed token so the Android client can authenticate.
+/// Launches the `vphone-cli` VM process with the automation API enabled and a
+/// fixed token so the Android client can authenticate.
 final class VPhoneRunner {
     private let config: Config
     private var process: Process?
     private var didPrintAPIInfo = false
     private var stopping = false
+    private var outputBuffer = ""
 
     init(config: Config) {
         self.config = config
@@ -28,7 +29,6 @@ final class VPhoneRunner {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
-
         pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
@@ -37,13 +37,14 @@ final class VPhoneRunner {
             }
         }
 
+        // `vphone-cli vm launch` boots the VM and may then exit while the
+        // vphone-vm process keeps running detached, so its exit is not an error.
         process.terminationHandler = { [weak self] proc in
             guard let self else { return }
             if self.stopping {
-                Log.info("vphone stopped.")
+                Log.info("vphone launch process stopped.")
             } else {
-                Log.error("vphone exited unexpectedly with status \(proc.terminationStatus).")
-                exit(1)
+                Log.info("vphone-cli exited (status \(proc.terminationStatus)); the VM keeps running.")
             }
         }
 
@@ -60,19 +61,37 @@ final class VPhoneRunner {
     }
 
     private func consumeOutput(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        outputBuffer += text
+        let lines = outputBuffer.components(separatedBy: "\n")
+        outputBuffer = lines.last ?? ""
+        for line in lines.dropLast() {
+            handleLine(line)
+        }
+    }
+
+    private func handleLine(_ line: String) {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             Log.info("vphone: \(trimmed)")
         }
-        if !didPrintAPIInfo, text.contains("[api]") {
+        if !didPrintAPIInfo, line.contains("[api]") {
             didPrintAPIInfo = true
             Log.info("Automation API is up on 127.0.0.1:\(config.port).")
-            Log.info("The Android app reaches it through `adb reverse` (connect to 127.0.0.1:\(config.port) on the phone).")
         }
     }
 
     func stop() {
         stopping = true
+        // Stop the VM (vphone-vm) explicitly, since vphone-cli may have detached.
+        let stop = Process()
+        stop.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        stop.arguments = [config.vphonePath, "vm", "stop", config.vm]
+        do {
+            try stop.run()
+            stop.waitUntilExit()
+        } catch {
+            Log.error("Failed to stop VM: \(error.localizedDescription)")
+        }
         if let process, process.isRunning {
             process.terminate()
         }
