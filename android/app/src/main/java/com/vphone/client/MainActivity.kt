@@ -3,13 +3,17 @@ package com.vphone.client
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -81,6 +85,13 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         pinScreen()
         // Retry shortly after, in case the first call happened too early.
         window.decorView.postDelayed({ pinScreen() }, 600)
+        // Match iOS orientation to the phone's current orientation.
+        applyRotation()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyRotation()
     }
 
     private fun pinScreen() {
@@ -91,10 +102,34 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun excludeSystemGestures() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && root.width > 0 && root.height > 0) {
-            root.systemGestureExclusionRects = listOf(Rect(0, 0, root.width, root.height))
+    private fun applyRotation() {
+        val rotation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display?.rotation ?: Surface.ROTATION_0
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.rotation
         }
+        val orientation = when (rotation) {
+            Surface.ROTATION_90 -> "landscape-left"
+            Surface.ROTATION_180 -> "upside-down"
+            Surface.ROTATION_270 -> "landscape-right"
+            else -> "portrait"
+        }
+        controller?.setRotation(orientation)
+    }
+
+    private fun excludeSystemGestures() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        val rects = if (root.width > 0 && root.height > 0) {
+            listOf(Rect(0, 0, root.width, root.height))
+        } else {
+            emptyList()
+        }
+        // Exclude the whole screen (edges + bottom) on both the content view
+        // and the decor view, so swipes reach the VM instead of Android's
+        // back/home gestures.
+        root.systemGestureExclusionRects = rects
+        window.decorView.systemGestureExclusionRects = rects
     }
 
     // ---- Settings ---------------------------------------------------------
@@ -192,15 +227,34 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideSystemBars()
+            excludeSystemGestures()
+        }
+    }
+
     private fun hideSystemBars() {
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Edge-to-edge: draw under the system bars and hide them.
+            window.setDecorFitsSystemWindows(false)
+            window.insetsController?.apply {
+                hide(WindowInsets.Type.systemBars())
+                systemBarsBehavior =
+                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    or View.SYSTEM_UI_FLAG_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                )
+        }
     }
 
     companion object {

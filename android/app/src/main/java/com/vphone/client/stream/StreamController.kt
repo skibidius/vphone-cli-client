@@ -63,4 +63,8 @@ class StreamController(
     fun sendButton(name: String) {
         inputClient?.sendButton(name)
     }
+
+    fun setRotation(orientation: String) {
+        inputClient?.sendRotation(orientation)
+    }
 }

@@ -62,6 +62,11 @@ class InputClient(
         send("input.button", JSONObject().put("name", name))
     }
 
+    /** Display rotation: "portrait", "landscape-left", "landscape-right", "upside-down". */
+    fun sendRotation(orientation: String) {
+        send("display.rotation", JSONObject().put("orientation", orientation))
+    }
+
     private fun send(method: String, params: JSONObject) {
         val id = idGen.incrementAndGet()
         val msg = JSONObject()
